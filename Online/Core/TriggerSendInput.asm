@@ -1,5 +1,6 @@
 ################################################################################
 # Address: 0x80376a28 # HSD_PadRenewRawStatus right after PAD_Read call
+# Annotation: Alpha subframe rollback with pad prediction logs
 ################################################################################
 
 .include "Common/Common.s"
@@ -370,83 +371,88 @@ add r4, r4, r5
 add r6, REG_RXB_ADDRESS, r3
 add r7, REG_ODB_ADDRESS, r4
 
+# For the first version of subframe rollback, since we're not storing the prediction
+# for later comparisons, assume the inputs have always changed i.e a rollback is
+# always necessary
+# TODO Adapt the predicted vs actual inputs comparison to the new prediction system
+
 # Check to see if inputs have changed. Start with buttons
 # ---SYXBA
-lbz r3, 0(r6)
-lbz r4, 0(r7)
-rlwinm r3, r3, 0, 0x1F
-rlwinm r4, r4, 0, 0x1F
-cmpw r3, r4
-bne TRIGGER_ROLLBACK
+# lbz r3, 0(r6)
+# lbz r4, 0(r7)
+# rlwinm r3, r3, 0, 0x1F
+# rlwinm r4, r4, 0, 0x1F
+# cmpw r3, r4
+# bne TRIGGER_ROLLBACK
 
 # -LRZUDRL
-lbz r3, 0x1(r6)
-lbz r4, 0x1(r7)
-rlwinm r3, r3, 0, 0x7F
-rlwinm r4, r4, 0, 0x7F
-cmpw r3, r4
-bne TRIGGER_ROLLBACK
+# lbz r3, 0x1(r6)
+# lbz r4, 0x1(r7)
+# rlwinm r3, r3, 0, 0x7F
+# rlwinm r4, r4, 0, 0x7F
+# cmpw r3, r4
+# bne TRIGGER_ROLLBACK
 
 # TODO: Sounds like new UCF still uses raw values but if it ever switches
 # TODO: to processed, consider removing this
 # Now do the analog sticks. We can't use the deadzones the way we do for the
 # triggers because of UCF checking for x differences
-lwz r3, 0x2(r6)
-lwz r4, 0x2(r7)
-cmpw r3, r4
-bne TRIGGER_ROLLBACK
+# lwz r3, 0x2(r6)
+# lwz r4, 0x2(r7)
+# cmpw r3, r4
+# bne TRIGGER_ROLLBACK
 
 # And finally, the triggers. Use deadzone at 42. 43+ are valid
-li r5, 5 # Valid indices are 6-7
-TRIGGER_LOOP_START:
-addi r5, r5, 1
-cmpwi r5, 8
-bge INPUTS_MATCH
-lbzx r3, r5, r6
-lbzx r4, r5, r7
-cmpwi r3, 42
-bgt CONTINUE_TRIGGER_CHECK
-cmpwi r4, 42
-ble TRIGGER_LOOP_START # If both triggers are 42 or under, they are in deadzone
-CONTINUE_TRIGGER_CHECK:
-cmpw r3, r4
-bne TRIGGER_ROLLBACK
-b TRIGGER_LOOP_START
+# li r5, 5 # Valid indices are 6-7
+# TRIGGER_LOOP_START:
+# addi r5, r5, 1
+# cmpwi r5, 8
+# bge INPUTS_MATCH
+# lbzx r3, r5, r6
+# lbzx r4, r5, r7
+# cmpwi r3, 42
+# bgt CONTINUE_TRIGGER_CHECK
+# cmpwi r4, 42
+# ble TRIGGER_LOOP_START # If both triggers are 42 or under, they are in deadzone
+# CONTINUE_TRIGGER_CHECK:
+# cmpw r3, r4
+# bne TRIGGER_ROLLBACK
+# b TRIGGER_LOOP_START
 
-INPUTS_MATCH:
+# INPUTS_MATCH:
 # Here inputs are the same as what we predicted, increment the read idx and the
 # savestate frame and continue, we will no longer need to roll back to that frame
-mulli r6, REG_COUNT, 4
-addi r6, r6, ODB_PLAYER_SAVESTATE_FRAME
-lwzx r3, r6, REG_ODB_ADDRESS # get our player-specific savestate frame
-addi r3, r3, 1
-stwx r3, r6, REG_ODB_ADDRESS
+# mulli r6, REG_COUNT, 4
+# addi r6, r6, ODB_PLAYER_SAVESTATE_FRAME
+# lwzx r3, r6, REG_ODB_ADDRESS # get our player-specific savestate frame
+# addi r3, r3, 1
+# stwx r3, r6, REG_ODB_ADDRESS
 
 # increment read index
-addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_READ_IDXS # compute offset of read idx for this player
-lbzx r3, r6, REG_ODB_ADDRESS # load this player's read idx
-addi r3, r3, 1
-cmpwi r3, ROLLBACK_MAX_FRAME_COUNT
-blt SKIP_PREDICTED_INPUTS_READ_IDX_ADJUST
-subi r3, r3, ROLLBACK_MAX_FRAME_COUNT
-SKIP_PREDICTED_INPUTS_READ_IDX_ADJUST:
-stbx r3, r6, REG_ODB_ADDRESS
-
-addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_READ_IDXS # compute offset of read idx for this player
-lbzx r3, r6, REG_ODB_ADDRESS
-addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_WRITE_IDXS # compute offset of write idx for this player
-lbzx r4, r6, REG_ODB_ADDRESS
-#logf LOG_LEVEL_WARN, "Player %d r/w indexes after reading: %d/%d", "mr r5, 20", "mr r6, 3", "mr r7, 4"
+# addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_READ_IDXS # compute offset of read idx for this player
+# lbzx r3, r6, REG_ODB_ADDRESS # load this player's read idx
+# addi r3, r3, 1
+# cmpwi r3, ROLLBACK_MAX_FRAME_COUNT
+# blt SKIP_PREDICTED_INPUTS_READ_IDX_ADJUST
+# subi r3, r3, ROLLBACK_MAX_FRAME_COUNT
+# SKIP_PREDICTED_INPUTS_READ_IDX_ADJUST:
+# stbx r3, r6, REG_ODB_ADDRESS
+# 
+# addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_READ_IDXS # compute offset of read idx for this player
+# lbzx r3, r6, REG_ODB_ADDRESS
+# addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_WRITE_IDXS # compute offset of write idx for this player
+# lbzx r4, r6, REG_ODB_ADDRESS
+# #logf LOG_LEVEL_WARN, "Player %d r/w indexes after reading: %d/%d", "mr r5, 20", "mr r6, 3", "mr r7, 4"
 
 # Check if we have caught up to the prediction
-addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_READ_IDXS # compute offset of read idx for this player
-lbzx r3, r6, REG_ODB_ADDRESS
-addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_WRITE_IDXS # compute offset of write idx for this player
-lbzx r4, r6, REG_ODB_ADDRESS
-cmpw r4, r3
-bne CHECK_WHETHER_TO_ROLL_BACK_LOOP # Not caught up, try loop again with next frame for this player
-
-b CONTINUE_ROLLBACK_CHECK_LOOP
+# addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_READ_IDXS # compute offset of read idx for this player
+# lbzx r3, r6, REG_ODB_ADDRESS
+# addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_WRITE_IDXS # compute offset of write idx for this player
+# lbzx r4, r6, REG_ODB_ADDRESS
+# cmpw r4, r3
+# bne CHECK_WHETHER_TO_ROLL_BACK_LOOP # Not caught up, try loop again with next frame for this player
+# 
+# b CONTINUE_ROLLBACK_CHECK_LOOP
 
 TRIGGER_ROLLBACK:
 mulli r6, REG_COUNT, 4
@@ -609,7 +615,7 @@ sub r3, r3, REG_FRAME_INDEX
 
 # Make sure that we have the opponent input we need
 cmpwi r3, 0
-bge CALC_OPNT_PAD_OFFSET
+bge LOAD_OPNT_KNOWN_INPUT
 
 # We are predicting inputs, back up the inputs for later comparison
 
@@ -619,12 +625,12 @@ lbz r3, ODB_DELAY_FRAMES(REG_ODB_ADDRESS)
 li r4, UNFREEZE_INPUTS_FRAME
 sub r3, r4, r3
 cmpw REG_FRAME_INDEX, r3 # Frame 84 +/- 1 (not sure) is first unfrozen frame
-blt LOAD_STALE_INPUTS
+blt LOAD_OPNT_PREDICTED_INPUT
 
 # Don't save/trigger any rollbacks once game ends, prevents issues with loading
 lbz r3, ODB_IS_GAME_OVER(REG_ODB_ADDRESS)
 cmpwi r3, 1
-beq LOAD_STALE_INPUTS
+beq LOAD_OPNT_PREDICTED_INPUT
 
 .set REG_PREDICTED_WRITE_IDX, REG_VARIOUS_1
 
@@ -666,7 +672,7 @@ lbzx r4, r6, REG_ODB_ADDRESS
 addi r6, REG_COUNT, ODB_PLAYER_SAVESTATE_IS_ACTIVE # compute offset of savestate flag for this player
 lbzx r3, r6, REG_ODB_ADDRESS
 cmpwi r3, 1
-beq LOAD_STALE_INPUTS
+beq LOAD_OPNT_PREDICTED_INPUT
 
 # Store the current frame in this player's savestate frame counter
 mulli r6, REG_COUNT, 4
@@ -688,7 +694,7 @@ stbx REG_PREDICTED_WRITE_IDX, r6, REG_ODB_ADDRESS
 # savestate because of another player's missing inputs, don't touch the global savestate frame counter
 lbz r3, ODB_SAVESTATE_IS_ACTIVE(REG_ODB_ADDRESS)
 cmpwi r3, 1
-beq LOAD_STALE_INPUTS
+beq LOAD_OPNT_PREDICTED_INPUT
 
 # Store the rollback frame in the global savestate frame counter
 stw REG_FRAME_INDEX, ODB_SAVESTATE_FRAME(REG_ODB_ADDRESS)
@@ -699,10 +705,13 @@ li r3, 1
 stb r3, ODB_SAVESTATE_IS_ACTIVE(REG_ODB_ADDRESS)
 #logf LOG_LEVEL_WARN, "Setting global savestate flag to 1"
 
-LOAD_STALE_INPUTS:
-li r3, 0 # use input at index zero (the most recent received)
+LOAD_OPNT_PREDICTED_INPUT:
+li r5, RXB_OPNT_PREDICTED_INPUT # offset to rxb input prediction slot
+mulli r6, REG_COUNT, PAD_REPORT_SIZE # offset for index of remote player
+add r5, r5, r6
+b COPY_OPNT_PAD_DATA
 
-CALC_OPNT_PAD_OFFSET:
+LOAD_OPNT_KNOWN_INPUT:
 # Index should never be >= ROLLBACK_MAX_FRAME_COUNT, in this case,
 # Slippi should have told us to wait
 mulli r3, r3, PAD_REPORT_SIZE # offset for index of input frame to look at
@@ -710,6 +719,7 @@ addi r5, r3, RXB_OPNT_INPUTS # offset from start of RXB
 mulli r6, REG_COUNT, PLAYER_MAX_INPUT_SIZE # offset for index of remote player
 add r5, r5, r6
 
+COPY_OPNT_PAD_DATA:
 # get offset from sp of online player's pad data
 mulli r3, REG_REMOTE_PLAYER_IDX, PAD_REPORT_SIZE
 addi r3, r3, P1_PAD_OFFSET # offset from sp where opponent pad report is
@@ -720,6 +730,31 @@ add r4, REG_RXB_ADDRESS, r5 # source
 li r5, PAD_REPORT_SIZE
 branchl r12, memcpy
 
+# recompute destination
+cmpwi REG_COUNT, 0
+bne SKIP_PREDICTION_LOGGING
+
+mulli r3, REG_REMOTE_PLAYER_IDX, PAD_REPORT_SIZE
+addi r3, r3, P1_PAD_OFFSET # offset from sp where opponent pad report is
+add r4, sp, r3
+lwz r7, 0(r4)
+mr r8, r7
+srwi r7, r7, 16 # byte 0 1
+andi. r8, r8, 0xFFFF # byte 2 3
+
+lwz r9, 4(r4)
+mr r10, r9
+srwi r9, r9, 16 # byte 4 5
+andi. r10, r10, 0xFFFF # byte 6 7
+
+logf LOG_LEVEL_WARN, "Frame %d player %d X %d %d %d %d", "mr r5, 26", "mr r6, 20"
+#, "mr r7, 3", "mr r8, 4", "mr r9, 5"
+
+### Logs frame and whether first input used has X
+#srawi r3, r3, 26 # access 4 of byte 1 i.e 2**(2+24) 
+#andi. r3, r3, 1 # reg frame index = r26
+
+SKIP_PREDICTION_LOGGING:
 addi REG_COUNT, REG_COUNT, 1
 addi REG_REMOTE_PLAYER_IDX, REG_REMOTE_PLAYER_IDX, 1
 cmpwi REG_COUNT, 3

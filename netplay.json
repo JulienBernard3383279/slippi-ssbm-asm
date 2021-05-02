@@ -14,7 +14,7 @@
         "[Gecko_Enabled]",
         "$Required: General Codes",
         "$Required: Slippi Recording",
-        "$Required: Slippi Online",
+        "$Required: Slippi Online (Subframe rollback)",
         "$Recommended: Normal Lag Reduction",
         "$Recommended: Apply Delay to all In-Game Scenes",
         "",
@@ -35,7 +35,7 @@
         "[Gecko_Enabled]",
         "$Required: General Codes",
         "$Required: Slippi Recording",
-        "$Required: Slippi Online",
+        "$Required: Slippi Online (Subframe rollback)",
         "$Recommended: Normal Lag Reduction",
         "$Recommended: Apply Delay to all In-Game Scenes",
         "",
@@ -288,7 +288,7 @@
       ]
     },
     {
-      "name": "Required: Slippi Online",
+      "name": "Required: Slippi Online (Subframe rollback)",
       "authors": [
         "Fizzi",
         "UnclePunch"
