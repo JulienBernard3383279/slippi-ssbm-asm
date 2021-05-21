@@ -374,85 +374,84 @@ add r7, REG_ODB_ADDRESS, r4
 # For the first version of subframe rollback, since we're not storing the prediction
 # for later comparisons, assume the inputs have always changed i.e a rollback is
 # always necessary
-# TODO Adapt the predicted vs actual inputs comparison to the new prediction system
 
 # Check to see if inputs have changed. Start with buttons
 # ---SYXBA
-# lbz r3, 0(r6)
-# lbz r4, 0(r7)
-# rlwinm r3, r3, 0, 0x1F
-# rlwinm r4, r4, 0, 0x1F
-# cmpw r3, r4
-# bne TRIGGER_ROLLBACK
+lbz r3, 0(r6)
+lbz r4, 0(r7)
+rlwinm r3, r3, 0, 0x1F
+rlwinm r4, r4, 0, 0x1F
+cmpw r3, r4
+bne TRIGGER_ROLLBACK
 
 # -LRZUDRL
-# lbz r3, 0x1(r6)
-# lbz r4, 0x1(r7)
-# rlwinm r3, r3, 0, 0x7F
-# rlwinm r4, r4, 0, 0x7F
-# cmpw r3, r4
-# bne TRIGGER_ROLLBACK
+lbz r3, 0x1(r6)
+lbz r4, 0x1(r7)
+rlwinm r3, r3, 0, 0x7F
+rlwinm r4, r4, 0, 0x7F
+cmpw r3, r4
+bne TRIGGER_ROLLBACK
 
 # TODO: Sounds like new UCF still uses raw values but if it ever switches
 # TODO: to processed, consider removing this
 # Now do the analog sticks. We can't use the deadzones the way we do for the
 # triggers because of UCF checking for x differences
-# lwz r3, 0x2(r6)
-# lwz r4, 0x2(r7)
-# cmpw r3, r4
-# bne TRIGGER_ROLLBACK
+lwz r3, 0x2(r6)
+lwz r4, 0x2(r7)
+cmpw r3, r4
+bne TRIGGER_ROLLBACK
 
 # And finally, the triggers. Use deadzone at 42. 43+ are valid
-# li r5, 5 # Valid indices are 6-7
-# TRIGGER_LOOP_START:
-# addi r5, r5, 1
-# cmpwi r5, 8
-# bge INPUTS_MATCH
-# lbzx r3, r5, r6
-# lbzx r4, r5, r7
-# cmpwi r3, 42
-# bgt CONTINUE_TRIGGER_CHECK
-# cmpwi r4, 42
-# ble TRIGGER_LOOP_START # If both triggers are 42 or under, they are in deadzone
-# CONTINUE_TRIGGER_CHECK:
-# cmpw r3, r4
-# bne TRIGGER_ROLLBACK
-# b TRIGGER_LOOP_START
+li r5, 5 # Valid indices are 6-7
+TRIGGER_LOOP_START:
+addi r5, r5, 1
+cmpwi r5, 8
+bge INPUTS_MATCH
+lbzx r3, r5, r6
+lbzx r4, r5, r7
+cmpwi r3, 42
+bgt CONTINUE_TRIGGER_CHECK
+cmpwi r4, 42
+ble TRIGGER_LOOP_START # If both triggers are 42 or under, they are in deadzone
+CONTINUE_TRIGGER_CHECK:
+cmpw r3, r4
+bne TRIGGER_ROLLBACK
+b TRIGGER_LOOP_START
 
 # INPUTS_MATCH:
 # Here inputs are the same as what we predicted, increment the read idx and the
 # savestate frame and continue, we will no longer need to roll back to that frame
-# mulli r6, REG_COUNT, 4
-# addi r6, r6, ODB_PLAYER_SAVESTATE_FRAME
-# lwzx r3, r6, REG_ODB_ADDRESS # get our player-specific savestate frame
-# addi r3, r3, 1
-# stwx r3, r6, REG_ODB_ADDRESS
+mulli r6, REG_COUNT, 4
+addi r6, r6, ODB_PLAYER_SAVESTATE_FRAME
+lwzx r3, r6, REG_ODB_ADDRESS # get our player-specific savestate frame
+addi r3, r3, 1
+stwx r3, r6, REG_ODB_ADDRESS
 
 # increment read index
-# addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_READ_IDXS # compute offset of read idx for this player
-# lbzx r3, r6, REG_ODB_ADDRESS # load this player's read idx
-# addi r3, r3, 1
-# cmpwi r3, ROLLBACK_MAX_FRAME_COUNT
-# blt SKIP_PREDICTED_INPUTS_READ_IDX_ADJUST
-# subi r3, r3, ROLLBACK_MAX_FRAME_COUNT
-# SKIP_PREDICTED_INPUTS_READ_IDX_ADJUST:
-# stbx r3, r6, REG_ODB_ADDRESS
-# 
-# addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_READ_IDXS # compute offset of read idx for this player
-# lbzx r3, r6, REG_ODB_ADDRESS
-# addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_WRITE_IDXS # compute offset of write idx for this player
-# lbzx r4, r6, REG_ODB_ADDRESS
-# logf LOG_LEVEL_WARN, "Player %d r/w indexes after reading: %d/%d", "mr r5, 20", "mr r6, 3", "mr r7, 4"
+addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_READ_IDXS # compute offset of read idx for this player
+lbzx r3, r6, REG_ODB_ADDRESS # load this player's read idx
+addi r3, r3, 1
+cmpwi r3, ROLLBACK_MAX_FRAME_COUNT
+blt SKIP_PREDICTED_INPUTS_READ_IDX_ADJUST
+subi r3, r3, ROLLBACK_MAX_FRAME_COUNT
+SKIP_PREDICTED_INPUTS_READ_IDX_ADJUST:
+stbx r3, r6, REG_ODB_ADDRESS
+
+addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_READ_IDXS # compute offset of read idx for this player
+lbzx r3, r6, REG_ODB_ADDRESS
+addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_WRITE_IDXS # compute offset of write idx for this player
+lbzx r4, r6, REG_ODB_ADDRESS
+logf LOG_LEVEL_WARN, "Player %d r/w indexes after reading: %d/%d", "mr r5, 20", "mr r6, 3", "mr r7, 4"
 
 # Check if we have caught up to the prediction
-# addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_READ_IDXS # compute offset of read idx for this player
-# lbzx r3, r6, REG_ODB_ADDRESS
-# addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_WRITE_IDXS # compute offset of write idx for this player
-# lbzx r4, r6, REG_ODB_ADDRESS
-# cmpw r4, r3
-# bne CHECK_WHETHER_TO_ROLL_BACK_LOOP # Not caught up, try loop again with next frame for this player
-# 
-# b CONTINUE_ROLLBACK_CHECK_LOOP
+addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_READ_IDXS # compute offset of read idx for this player
+lbzx r3, r6, REG_ODB_ADDRESS
+addi r6, REG_COUNT, ODB_ROLLBACK_PREDICTED_INPUTS_WRITE_IDXS # compute offset of write idx for this player
+lbzx r4, r6, REG_ODB_ADDRESS
+cmpw r4, r3
+bne CHECK_WHETHER_TO_ROLL_BACK_LOOP # Not caught up, try loop again with next frame for this player
+
+b CONTINUE_ROLLBACK_CHECK_LOOP
 
 TRIGGER_ROLLBACK:
 mulli r6, REG_COUNT, 4
@@ -644,8 +643,13 @@ add r3, r3, r5
 
 # copy predicted pad data to predicted input buffer for later comparison
 # in order to decide whether to roll back
-mulli r6, REG_COUNT, PLAYER_MAX_INPUT_SIZE
-addi r6, r6, RXB_OPNT_INPUTS
+
+# Use Kristal input instead
+li r5, RXB_OPNT_PREDICTED_INPUT # offset to rxb input prediction slot
+mulli r6, REG_COUNT, PAD_REPORT_SIZE # offset for index of remote player
+add r6, r5, r6
+#mulli r6, REG_COUNT, PLAYER_MAX_INPUT_SIZE
+#addi r6, r6, RXB_OPNT_INPUTS
 add r3, REG_ODB_ADDRESS, r3 # destination
 add r4, REG_RXB_ADDRESS, r6 # source
 li r5, PAD_REPORT_SIZE
