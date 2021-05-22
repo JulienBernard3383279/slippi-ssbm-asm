@@ -371,10 +371,6 @@ add r4, r4, r5
 add r6, REG_RXB_ADDRESS, r3
 add r7, REG_ODB_ADDRESS, r4
 
-# For the first version of subframe rollback, since we're not storing the prediction
-# for later comparisons, assume the inputs have always changed i.e a rollback is
-# always necessary
-
 # Check to see if inputs have changed. Start with buttons
 # ---SYXBA
 lbz r3, 0(r6)
@@ -418,7 +414,7 @@ cmpw r3, r4
 bne TRIGGER_ROLLBACK
 b TRIGGER_LOOP_START
 
-# INPUTS_MATCH:
+INPUTS_MATCH:
 # Here inputs are the same as what we predicted, increment the read idx and the
 # savestate frame and continue, we will no longer need to roll back to that frame
 mulli r6, REG_COUNT, 4
